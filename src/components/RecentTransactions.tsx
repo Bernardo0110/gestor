@@ -19,7 +19,6 @@ export default function RecentTransactions({ items }: { items: Tx[] }) {
           <li key={t.id} className="flex items-center justify-between py-2">
             <div className="flex flex-col">
               <span className="font-medium">{t.description}</span>
-              <span className="text-xs text-gray-400">{t.date}</span>
             </div>
             <div className={`font-semibold ${t.amount.startsWith('-') ? 'text-red-400' : 'text-green-400'}`}>
               {t.amount}

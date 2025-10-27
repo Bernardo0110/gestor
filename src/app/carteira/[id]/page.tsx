@@ -64,16 +64,8 @@ export default async function CarteiraDashboard({ params }: Props) {
         </header>
 
         {isPrincipal ? (
-          <section className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
-            <div className="lg:col-span-2">
-              <div className="rounded-md bg-gray-800/50 p-4 text-gray-300">
-                <div className="mb-2 text-lg font-medium">Carteira Principal</div>
-                <div className="text-sm">Esta carteira não possui dados pré-cadastrados. Use o botão abaixo para cadastrar ativos na categoria <strong>Ações</strong>.</div>
-              </div>
-            </div>
-            <div>
-              <AssetManager walletId={id} />
-            </div>
+          <section className="mb-6">
+            <AssetManager walletId={id} />
           </section>
         ) : (
           <>

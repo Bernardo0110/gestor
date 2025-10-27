@@ -22,6 +22,8 @@ type Asset = {
   valorInvestido?: number;
   dataOperacao?: string; // ISO date
   dataVencimento?: string; // ISO date
+  taxa?: number;
+  totalPago?: number;
   indexador?: 'CDI' | 'IPCA' | 'Prefixado' | 'SELIC';
   // renda fixa nome and percentual
   nome?: string;
@@ -61,6 +63,8 @@ export default function AssetManager({ walletId }: { walletId: string }) {
   const [precoUnitario, setPrecoUnitario] = useState<number | ''>('');
   const [corretora, setCorretora] = useState('');
   const [descricao, setDescricao] = useState('');
+  const [taxa, setTaxa] = useState<number | ''>('');
+  const [totalPago, setTotalPago] = useState<number | ''>('');
   const [valorInvestido, setValorInvestido] = useState<number | ''>('');
   const [dataOperacao, setDataOperacao] = useState('');
   const [dataVencimento, setDataVencimento] = useState('');
@@ -139,7 +143,11 @@ export default function AssetManager({ walletId }: { walletId: string }) {
       if (!precoUnitario || Number(precoUnitario) <= 0) return;
       if (!corretora.trim()) return;
     } else {
-      if (!ticker.trim()) return;
+      if (category === 'Cryptomoedas') {
+        if (!nome.trim()) return;
+      } else {
+        if (!ticker.trim()) return;
+      }
     }
 
     const idLabel = category === 'Renda Fixa' ? (nome || rfType) : category === 'Tesouro Direto' ? (tdType + (descricao ? ` - ${descricao}` : '')) : ticker;
@@ -147,20 +155,26 @@ export default function AssetManager({ walletId }: { walletId: string }) {
     const asset: Asset = {
       id: `${idLabel || category}-${Date.now()}`,
       category,
-      ticker: category === 'Renda Fixa' ? undefined : ticker.toUpperCase().trim(),
+      ticker: category === 'Renda Fixa' ? undefined : (ticker ? ticker.toUpperCase().trim() : undefined),
       quantidade: category === 'Renda Fixa' ? undefined : Number(quantidade) || 0,
-      precoMedio: category === 'Renda Fixa' ? undefined : Number(precoMedio) || 0,
+      precoMedio: category === 'Renda Fixa'
+        ? undefined
+        : category === 'Cryptomoedas'
+        ? (Number(quantidade) ? (((totalPago === '' ? 0 : Number(totalPago)) - (taxa === '' ? 0 : Number(taxa))) / Number(quantidade)) : 0)
+        : Number(precoMedio) || 0,
       rfType: category === 'Renda Fixa' ? rfType : undefined,
       tdType: category === 'Tesouro Direto' ? tdType : undefined,
       precoUnitario: category === 'Tesouro Direto' ? Number(precoUnitario) || 0 : undefined,
-      corretora: category === 'Tesouro Direto' ? (corretora.trim() || undefined) : undefined,
+      corretora: category === 'Tesouro Direto' ? (corretora.trim() || undefined) : category === 'Cryptomoedas' ? (corretora.trim() || undefined) : undefined,
       descricao: category === 'Tesouro Direto' ? (descricao.trim() || undefined) : undefined,
       dataAplicacao: category === 'Tesouro Direto' ? (dataCompra || undefined) : undefined,
       valorInvestido: category === 'Renda Fixa' ? (Number(valorInvestido) || 0) : category === 'Tesouro Direto' ? (Number(valorInvestido) || (Number(quantidade) || 0) * (Number(precoUnitario) || 0)) : undefined,
       dataOperacao: category === 'Renda Fixa' ? (dataOperacao || undefined) : category === 'Tesouro Direto' ? (dataCompra || undefined) : dataOperacao || undefined,
-      dataVencimento: category === 'Renda Fixa' ? dataVencimento || undefined : undefined,
-      indexador: category === 'Renda Fixa' ? indexador : undefined,
-      nome: category === 'Renda Fixa' ? nome.trim() || undefined : undefined,
+      dataVencimento: category === 'Renda Fixa' || category === 'Tesouro Direto' ? dataVencimento || undefined : undefined,
+      nome: category === 'Renda Fixa' ? nome.trim() || undefined : category === 'Cryptomoedas' ? nome.trim() || undefined : undefined,
+  taxa: category === 'Cryptomoedas' ? (taxa === '' ? undefined : Number(taxa)) : undefined,
+  totalPago: category === 'Cryptomoedas' ? (totalPago === '' ? undefined : Number(totalPago)) : undefined,
+  indexador: category === 'Renda Fixa' ? indexador : undefined,
       percentual: category === 'Renda Fixa' ? (Number(percentual) || 0) : undefined,
     };
 
@@ -181,6 +195,7 @@ export default function AssetManager({ walletId }: { walletId: string }) {
           quantidade: totalQty,
           precoMedio: mergedAvg,
           dataOperacao: asset.dataOperacao || existing.dataOperacao,
+          dataVencimento: asset.dataVencimento || existing.dataVencimento,
           transactions: [
             ...(existing.transactions ?? []),
             { id: `tx-${Date.now()}`, date: txDate, quantidade: addQty, preco: addAvg, tipo: 'compra' },
@@ -215,6 +230,8 @@ export default function AssetManager({ walletId }: { walletId: string }) {
     setDataVencimento('');
     setIndexador('CDI');
     setNome('');
+    setTotalPago('');
+    setTaxa('');
     setPercentual('');
     setTdType('Tesouro IPCA');
     setDataCompra('');
@@ -340,10 +357,22 @@ export default function AssetManager({ walletId }: { walletId: string }) {
                   </>
                 ) : (
                   <>
-                    <input className="rounded p-2 bg-white text-black placeholder-gray-500" placeholder="Ticket" value={ticker} onChange={(e) => setTicker(e.target.value)} />
-                    <input className="rounded p-2 bg-white text-black placeholder-gray-500" placeholder="Quantidade" type="number" value={quantidade as any} onChange={(e) => setQuantidade(e.target.value === '' ? '' : Number(e.target.value))} />
-                    <input className="rounded p-2 bg-white text-black placeholder-gray-500" placeholder="Preço médio" type="number" step="0.01" value={precoMedio as any} onChange={(e) => setPrecoMedio(e.target.value === '' ? '' : Number(e.target.value))} />
-                    <input className="rounded p-2 bg-white text-black" placeholder="Data operação" type="date" value={dataOperacao} onChange={(e) => setDataOperacao(e.target.value)} />
+                    {category === 'Cryptomoedas' ? (
+                      <>
+                        <input className="rounded p-2 bg-white text-black placeholder-gray-500" placeholder="Nome (ex: BTC/BRL)" value={nome} onChange={(e) => setNome(e.target.value)} />
+                        <input className="rounded p-2 bg-white text-black placeholder-gray-500" placeholder="Quantidade" type="number" value={quantidade as any} onChange={(e) => setQuantidade(e.target.value === '' ? '' : Number(e.target.value))} />
+                        <input className="rounded p-2 bg-white text-black placeholder-gray-500" placeholder="Total pago (R$)" type="number" step="0.01" value={totalPago as any} onChange={(e) => setTotalPago(e.target.value === '' ? '' : Number(e.target.value))} />
+                        <input className="rounded p-2 bg-white text-black placeholder-gray-500" placeholder="Taxa (opcional)" type="number" step="0.01" value={taxa as any} onChange={(e) => setTaxa(e.target.value === '' ? '' : Number(e.target.value))} />
+                        <input className="rounded p-2 bg-white text-black placeholder-gray-500" placeholder="Corretora" value={corretora} onChange={(e) => setCorretora(e.target.value)} />
+                      </>
+                    ) : (
+                      <>
+                        <input className="rounded p-2 bg-white text-black placeholder-gray-500" placeholder="Ticket" value={ticker} onChange={(e) => setTicker(e.target.value)} />
+                        <input className="rounded p-2 bg-white text-black placeholder-gray-500" placeholder="Quantidade" type="number" value={quantidade as any} onChange={(e) => setQuantidade(e.target.value === '' ? '' : Number(e.target.value))} />
+                        <input className="rounded p-2 bg-white text-black placeholder-gray-500" placeholder="Preço médio" type="number" step="0.01" value={precoMedio as any} onChange={(e) => setPrecoMedio(e.target.value === '' ? '' : Number(e.target.value))} />
+                        <input className="rounded p-2 bg-white text-black" placeholder="Data operação" type="date" value={dataOperacao} onChange={(e) => setDataOperacao(e.target.value)} />
+                      </>
+                    )}
                   </>
                 )}
 
@@ -372,13 +401,13 @@ export default function AssetManager({ walletId }: { walletId: string }) {
                     <li key={a.id} className="flex items-center justify-between rounded bg-gray-700/40 p-2">
                       <div>
                         <div>
-                          <button onClick={() => setTxModalAsset(a)} className="font-medium underline hover:text-blue-300">{a.category === 'Renda Fixa' ? (a.nome ?? a.rfType ?? '-') : (a.ticker ?? '-')}</button>
+                          <button onClick={() => setTxModalAsset(a)} className="font-medium underline hover:text-blue-300">{a.category === 'Renda Fixa' ? (a.nome ?? a.rfType ?? '-') : (a.ticker ?? a.nome ?? '-')}</button>
                         </div>
                         {a.category === 'Renda Fixa' ? (
                           <div className="text-xs text-gray-300">
                             <div>Nome: {a.nome ?? a.rfType}</div>
                             <div>Tipo: {a.rfType} • Valor investido: R$ {(a.valorInvestido ?? 0).toFixed(2)}</div>
-                            <div>Operação: {a.dataOperacao ?? '-'} • Vencimento: {a.dataVencimento ?? '-'}</div>
+                              <div>Vencimento: {a.dataVencimento ?? '-'}</div>
                             <div>Indexador: {a.indexador ?? '-'} • {formatPercentualDisplay(a.indexador, a.percentual)}</div>
                           </div>
                         ) : a.category === 'Tesouro Direto' ? (
@@ -386,11 +415,19 @@ export default function AssetManager({ walletId }: { walletId: string }) {
                             <div>Tipo TD: {a.tdType ?? '-'}</div>
                             <div>Quantidade: {a.quantidade ?? 0} • Preço unit.: R$ {(a.precoUnitario ?? 0).toFixed(2)}</div>
                             <div>Valor investido: R$ {(a.valorInvestido ?? 0).toFixed(2)}</div>
-                            <div>Compra: {a.dataAplicacao ?? '-'} • Vencimento: {a.dataVencimento ?? '-'}</div>
+                            <div>Vencimento: {a.dataVencimento ?? '-'}</div>
                             <div>Corretora: {a.corretora ?? '-'}{a.descricao ? ` • ${a.descricao}` : ''}</div>
                           </div>
                         ) : (
-                          <div className="text-xs text-gray-300">Qtd: {a.quantidade ?? 0} • Preço médio: R$ {(a.precoMedio ?? 0).toFixed(2)} • Operação: {a.dataOperacao ?? '-'}</div>
+                          a.category === 'Cryptomoedas' ? (
+                            <div className="text-xs text-gray-300">
+                              <div>Qtd: {a.quantidade ?? 0}</div>
+                              <div>Financeiro: R$ {a.totalPago !== undefined ? Number(a.totalPago).toFixed(2) : '0.00'}</div>
+                              <div>P. Médio: R$ {a.precoMedio !== undefined ? Number(a.precoMedio).toFixed(2) : '0.00'}</div>
+                            </div>
+                          ) : (
+                            <div className="text-xs text-gray-300">Qtd: {a.quantidade ?? 0} • Preço médio: R$ {(a.precoMedio ?? 0).toFixed(2)}</div>
+                          )
                         )}
                       </div>
                       <div className="flex items-center gap-2">
